@@ -7,7 +7,6 @@ use ThauEx\SimpleHtmlDom\SHD;
 function crawler($page = 0)
 {	
 	$url = 'http://rumaysho.com/arsip-artikel';
-	$apiUrl = 'http://localhost/dop/rumaysho-api/';
 	$currentUrl = ( $page != 0 ) ? $url."//page//".$page : $url;
 	SHD::$fileCacheDir = "tmp";
 	$html = SHD::fileGetHtml($currentUrl);
@@ -15,13 +14,16 @@ function crawler($page = 0)
 		foreach ($element->find('h3 a') as $key)
 	       getPost($key->href);
 
-	$paging = $html->find('div.pagination',0);
-	$lastpaging = $paging->lastChild()->plaintext;
-	if($lastpaging == 'LAST');
+	if( $paging = $html->find('div.pagination',0) )
+		$lastpaging = $paging->lastChild()->plaintext;
+
+	if($lastpaging == 'LAST'){
 		$page++;
 		crawler($page);
-
+	}
+	die();
 }
+
 // get post data
 function getPost($url = '')
 {
@@ -31,29 +33,55 @@ function getPost($url = '')
 	$title = $post->find('h2.post-title',0);
 	$date = $post->find('p.post-meta span.date',0);
 	$author = $post->find('p.post-meta span.author',0);
-	$cat = $post->find('p.post-meta span.meta-cat a',0);
+	$category = $post->find('p.post-meta span.meta-cat a',0);
 	$content = $post->find('div.post_content',0);
-	echo '<li>';
-	echo '<p>Title : '.$title->plaintext.'</p>';
-	echo '<p>Date : '.$date->plaintext.'</p>';
-	echo '<p>Author : '.$author->plaintext.'</p>';
-	echo '<p>Category : '.$cat->plaintext.'</p>';
-	echo '<p>Content :</p>';
-	echo $content->innertext;
-	echo '</li>';
+
+	//create array of data to be posted
+	$postData['title'] = $title->plaintext;
+	$postData['date'] = $date->plaintext;
+	$postData['author'] = $author->plaintext;
+	$postData['category'] = $category->plaintext;
+	$postData['content'] = $content->innertext;
+	$postData['url'] = $url;
+	savePost($postData);
 }
-echo '
-<!doctype html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<title>Document</title>
-</head>
-<body>
-';
-echo "<ol>";
-crawler();
-echo "</ol>";
-echo "
-</body>
-</html>";
+
+function savePost($postData)
+{
+	$apiUrl = 'localhost/dop/rumaysho-api/article';
+
+	//traverse array and prepare data for posting (key1=value1)
+	foreach ( $postData as $key => $value) {
+	    $postItems[] = $key . '=' . $value;
+	}
+	 
+	//create the final string to be posted using implode()
+	$postString = implode ('&', $postItems);
+	 
+	//create cURL connection
+	$curlConnection = curl_init($apiUrl);
+	 
+	//set options
+	curl_setopt($curlConnection, CURLOPT_CONNECTTIMEOUT, 30);
+	curl_setopt($curlConnection, CURLOPT_USERAGENT,"Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)");
+	curl_setopt($curlConnection, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($curlConnection, CURLOPT_SSL_VERIFYPEER, false);
+	curl_setopt($curlConnection, CURLOPT_FOLLOWLOCATION, 1);
+	 
+	//set data to be posted
+	curl_setopt($curlConnection, CURLOPT_POSTFIELDS, $postString);
+	 
+	//perform our request
+	$result = curl_exec($curlConnection);
+	 
+	//show information regarding the request
+	// echo '<pre>';
+	// print_r(curl_getinfo($curlConnection));
+	// echo curl_errno($curlConnection) . '-' . 
+	// curl_error($curlConnection);
+	 
+	//close the connection
+	curl_close($curlConnection);
+}
+
+crawler(119);
